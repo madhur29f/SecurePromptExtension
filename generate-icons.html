@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head><title>Icon Generator</title></head>
+<body>
+<canvas id="c"></canvas>
+<script>
+  function generateIcon(size) {
+    const canvas = document.getElementById('c');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const s = size / 128;
+
+    // Background
+    ctx.beginPath();
+    const r = 28 * s;
+    roundRect(ctx, 0, 0, size, size, r);
+    ctx.fillStyle = '#0f1219';
+    ctx.fill();
+
+    // Shield
+    const grad = ctx.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, '#6366f1');
+    grad.addColorStop(1, '#8b5cf6');
+    ctx.beginPath();
+    ctx.moveTo(64 * s, 18 * s);
+    ctx.lineTo(102 * s, 40 * s);
+    ctx.lineTo(102 * s, 72 * s);
+    ctx.quadraticCurveTo(102 * s, 95 * s, 64 * s, 118 * s);
+    ctx.quadraticCurveTo(26 * s, 95 * s, 26 * s, 72 * s);
+    ctx.lineTo(26 * s, 40 * s);
+    ctx.closePath();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Lock body
+    ctx.beginPath();
+    roundRect(ctx, 54 * s, 52 * s, 20 * s, 24 * s, 3 * s);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fill();
+
+    // Lock arc
+    ctx.beginPath();
+    ctx.arc(64 * s, 46 * s, 10 * s, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 4 * s;
+    ctx.stroke();
+
+    // Lock keyhole
+    ctx.beginPath();
+    ctx.arc(64 * s, 63 * s, 3 * s, 0, Math.PI * 2);
+    ctx.fillStyle = '#6366f1';
+    ctx.fill();
+
+    return canvas.toDataURL('image/png');
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+  }
+
+  [16, 48, 128].forEach(size => {
+    const dataUrl = generateIcon(size);
+    const link = document.createElement('a');
+    link.download = `icon${size}.png`;
+    link.href = dataUrl;
+    link.textContent = `Download icon${size}.png`;
+    link.style.display = 'block';
+    link.style.margin = '10px';
+    link.style.fontSize = '18px';
+    document.body.appendChild(link);
+  });
+</script>
+</body>
+</html>

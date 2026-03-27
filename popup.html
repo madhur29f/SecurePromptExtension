@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=400">
+  <title>SecurePrompt</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="header-icon">🛡️</div>
+      <div>
+        <h1 class="header-title">SecurePrompt</h1>
+        <p class="header-subtitle">PII Guardian for AI Chats</p>
+      </div>
+    </div>
+    <label class="power-toggle" id="power-toggle">
+      <input type="checkbox" id="toggle-enabled" checked>
+      <span class="power-track"></span>
+    </label>
+  </header>
+
+  <!-- Status -->
+  <div class="status-bar" id="status-bar">
+    <span class="status-dot active" id="status-dot"></span>
+    <span class="status-text" id="status-text">Protecting your data</span>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-icon">🔍</div>
+      <div class="stat-value" id="stat-detected">0</div>
+      <div class="stat-label">Detected Today</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✂️</div>
+      <div class="stat-value" id="stat-redacted">0</div>
+      <div class="stat-label">Total Redacted</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🚫</div>
+      <div class="stat-value" id="stat-blocked">0</div>
+      <div class="stat-label">Blocked</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🌐</div>
+      <div class="stat-value" id="stat-total">0</div>
+      <div class="stat-label">All-time Detections</div>
+    </div>
+  </div>
+
+  <!-- Settings Section -->
+  <div class="section">
+    <div class="section-header">
+      <span>⚙️</span>
+      <span>Settings</span>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-info">
+        <div class="setting-name">Auto-Redact Mode</div>
+        <div class="setting-desc">Automatically redact PII without showing a modal</div>
+      </div>
+      <label class="toggle-switch">
+        <input type="checkbox" id="toggle-autoredact">
+        <span class="toggle-track"></span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Detection Types -->
+  <div class="section">
+    <div class="section-header">
+      <span>🎯</span>
+      <span>Detection Types</span>
+    </div>
+    <div class="types-grid" id="types-grid">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <button class="footer-btn" id="btn-reset">Reset Stats</button>
+    <div class="footer-info">100% on-device • No data collected</div>
+  </div>
+
+  <script src="pii-detector.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

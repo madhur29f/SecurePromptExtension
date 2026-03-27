@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "SecurePrompt",
+  "version": "1.0.0",
+  "description": "Protect your sensitive data before sending it to AI chatbots. Detects and redacts PII, API keys, credit cards, and more — 100% on-device.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "icons": {
+    "16": "icons/icon16.svg",
+    "48": "icons/icon48.svg",
+    "128": "icons/icon128.svg"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.svg",
+      "48": "icons/icon48.svg",
+      "128": "icons/icon128.svg"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "libs/pdf-lib.min.js",
+        "libs/jszip.min.js",
+        "pii-detector.js",
+        "file-scanner.js",
+        "modal.js",
+        "content.js"
+      ],
+      "css": [
+        "modal.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "libs/pdf.min.mjs",
+        "libs/pdf.worker.min.mjs",
+        "libs/pdf-lib.min.js",
+        "libs/jszip.min.js",
+        "modal.css",
+        "icons/*"
+      ],
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*"
+      ]
+    }
+  ]
+}
