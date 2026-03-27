@@ -151,7 +151,76 @@ const FileScanner = (() => {
     }
   }
 
+  async function performOCR(file) {
+    try {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
+      const response = await chrome.runtime.sendMessage({
+        type: 'OCR_IMAGE',
+        dataUrl
+      });
+      
+      if (response && response.error) {
+        console.warn('[SecurePrompt] Offscreen OCR failed:', response.error);
+        return null;
+      }
+      return response; // { text, words: Array<{text, bbox: {x0,y0,x1,y1,width,height}}> }
+    } catch (e) {
+      console.warn('[SecurePrompt] OCR messaging failed:', e);
+      return null;
+    }
+  }
+
+  async function analyzeImage(file) {
+    const findings = [];
+    const warnings = [];
+    let extractedText = '';
+    let ocrData = null;
+
+    // 1. Initial filename scan
+    const nameFindings = window.PIIDetector ? window.PIIDetector.scan(file.name) : [];
+    if (nameFindings.length > 0) {
+      warnings.push({
+        source: 'filename',
+        message: `Filename "${file.name}" contains sensitive data.`,
+        findings: nameFindings
+      });
+    }
+
+    // 2. Offscreen OCR Preprocessing
+    console.log(`[SecurePrompt OCR] Analyzing ${file.name}...`);
+    ocrData = await performOCR(file);
+
+    // 3. Multi-Layered Data Detection
+    if (ocrData && ocrData.text) {
+      extractedText = ocrData.text;
+      const textFindings = window.PIIDetector ? window.PIIDetector.scan(extractedText) : [];
+      if (textFindings.length > 0) {
+         findings.push(...textFindings);
+      }
+    } else {
+      warnings.push({
+        source: 'visual',
+        message: 'Image may contain visible sensitive information (IDs, screenshots). Please review before sending.',
+        findings: []
+      });
+    }
+
+    if (findings.length > 0) {
+      warnings.push({
+        source: 'visual',
+        message: 'Sensitive text was detected inside this image. Tap "Redact & Send" to black it out.',
+        findings: []
+      });
+    }
+
+    return { text: extractedText, findings, warnings, ocrWords: ocrData ? ocrData.words : null };
+  }
 
   /**
    * Scan a file for PII.
@@ -199,7 +268,23 @@ const FileScanner = (() => {
           result.findings = window.PIIDetector ? window.PIIDetector.scan(extracted.text) : [];
         }
       }
-
+      
+      // ── Images ──
+      else if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
+        const imageResult = await analyzeImage(file);
+        result.warnings = imageResult.warnings;
+        
+        // Merge image findings
+        if (imageResult.findings && imageResult.findings.length > 0) {
+          result.findings.push(...imageResult.findings);
+        }
+        for (const w of imageResult.warnings) {
+          if (w.findings && w.findings.length > 0) result.findings.push(...w.findings);
+        }
+        
+        if (imageResult.ocrWords) result.ocrWords = imageResult.ocrWords;
+      }
+      
       // ── Text-based files ──
       else if (
         mimeType.startsWith('text/') ||
@@ -322,7 +407,63 @@ const FileScanner = (() => {
         return new File([redactedText], newName, { type: 'text/plain' });
       }
       
-
+      // ── Images (Canvas Reconstruction & Pixel Destruction) ──
+      else if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
+        if (!result.ocrWords || result.findings.length === 0) return file;
+        
+        const selectedFindings = result.findings.filter((_, i) => selectedIndices.has(i));
+        const blocksToRedact = [];
+        
+        // 4. Spatial Coordinate Intersection
+        for (const finding of selectedFindings) {
+           const piiStr = finding.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+           if (!piiStr) continue;
+           
+           for (const word of result.ocrWords) {
+             const wordStr = word.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+             if (!wordStr) continue;
+             if (piiStr === wordStr || (wordStr.length > 2 && (piiStr.includes(wordStr) || wordStr.includes(piiStr)))) {
+               // Pad the bounding box slightly to ensure full coverage
+               blocksToRedact.push({
+                 x: word.bbox.x0 - 2,
+                 y: word.bbox.y0 - 2,
+                 w: word.bbox.width + 4,
+                 h: word.bbox.height + 4
+               });
+             }
+           }
+        }
+        
+        if (blocksToRedact.length === 0) return file;
+        
+        // 5. Canvas Reconstruction & 6. Reserialization
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+             const canvas = document.createElement('canvas');
+             canvas.width = img.width;
+             canvas.height = img.height;
+             const ctx = canvas.getContext('2d');
+             
+             // Paint original image
+             ctx.drawImage(img, 0, 0);
+             
+             // Pixel Destruction
+             ctx.fillStyle = '#1e1e1e'; // Dark gray as requested
+             for (const block of blocksToRedact) {
+               ctx.fillRect(block.x, block.y, block.w, block.h);
+             }
+             
+             canvas.toBlob((blob) => {
+               const newName = file.name.replace(/\.[^/.]+$/, "") + "_redacted.png";
+               resolve(new File([blob], newName, { type: 'image/png' }));
+             }, 'image/png');
+          };
+          img.onerror = () => resolve(file);
+          img.src = URL.createObjectURL(file);
+        });
+      }
+      
       
       // ── Text-based files ──
       else {

@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- 
+    This offscreen document runs in the extension's background context.
+    It allows us to use Tesseract.js (which requires WASM eval) securely 
+    without being blocked by the host page's CSP (like ChatGPT or Claude).
+  -->
+  <script src="libs/tesseract/tesseract.min.js"></script>
+  <script src="offscreen.js"></script>
+</head>
+<body></body>
+</html>

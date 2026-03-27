@@ -67,8 +67,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       };
       chrome.storage.local.set({ stats: freshStats }).then(() => sendResponse({ ok: true }));
       return true;
+
+    case 'OCR_IMAGE':
+      handleOCRRequest(message, sendResponse);
+      return true;
   }
 });
+
+let creatingOffscreen;
+async function setupOffscreenDocument(path) {
+  const offscreenUrl = chrome.runtime.getURL(path);
+  
+  if (chrome.runtime.getContexts) {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      documentUrls: [offscreenUrl]
+    });
+    if (existingContexts.length > 0) return;
+  }
+
+  if (creatingOffscreen) {
+    await creatingOffscreen;
+    return;
+  }
+  
+  creatingOffscreen = chrome.offscreen.createDocument({
+    url: path,
+    reasons: ['DOM_PARSER'],
+    justification: 'Run Tesseract.js OCR offline without violating host page CSP',
+  });
+  
+  await creatingOffscreen;
+  creatingOffscreen = null;
+}
+
+async function handleOCRRequest(message, sendResponse) {
+  try {
+    await setupOffscreenDocument('offscreen.html');
+    const result = await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: 'OCR_IMAGE',
+      dataUrl: message.dataUrl
+    });
+    sendResponse(result);
+  } catch (err) {
+    console.error('[SecurePrompt Background] OCR Setup Error:', err);
+    sendResponse({ error: err.toString() });
+  }
+}
 
 async function handlePIIDetected(message, tab) {
   const { stats = {} } = await chrome.storage.local.get('stats');
