@@ -35,6 +35,8 @@
       "js": [
         "libs/pdf-lib.min.js",
         "libs/jszip.min.js",
+        "libs/tracking/tracking-min.js",
+        "libs/tracking/face-min.js",
         "pii-detector.js",
         "file-scanner.js",
         "modal.js",
@@ -54,6 +56,7 @@
         "libs/pdf-lib.min.js",
         "libs/jszip.min.js",
         "libs/tesseract/*",
+        "libs/tracking/*",
         "modal.css",
         "icons/*"
       ],

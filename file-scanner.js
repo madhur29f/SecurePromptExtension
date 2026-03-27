@@ -96,7 +96,7 @@ const FileScanner = (() => {
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        const pageText = content.items.map(item => item.str).join(' ');
+        const pageText = content.items.map(item => item.str + (item.hasEOL ? '\n' : ' ')).join('').replace(/ \n/g, '\n');
         textParts.push(pageText);
       }
 
@@ -134,18 +134,26 @@ const FileScanner = (() => {
       const parser = new DOMParser();
       const xmlDoc = parser.parseFromString(docXml, 'application/xml');
 
-      // Get all text nodes from <w:t> elements
-      const textNodes = xmlDoc.getElementsByTagNameNS(
+      // Extract text by Paragraphs (<w:p>) to preserve structure
+      const pNodes = xmlDoc.getElementsByTagNameNS(
         'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
-        't'
+        'p'
       );
 
       const texts = [];
-      for (const node of textNodes) {
-        texts.push(node.textContent);
+      for (const p of pNodes) {
+        let pText = '';
+        const tNodes = p.getElementsByTagNameNS(
+          'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+          't'
+        );
+        for (const t of tNodes) {
+          pText += t.textContent;
+        }
+        if (pText.trim()) texts.push(pText);
       }
 
-      return { text: texts.join(' '), error: null, partial: false };
+      return { text: texts.join('\n'), error: null, partial: false };
     } catch (e) {
       return { text: '', error: `DOCX extraction failed: ${e.message}`, partial: true };
     }
@@ -176,6 +184,39 @@ const FileScanner = (() => {
     }
   }
 
+  /**
+   * Run offline face detection using tracking.js
+   */
+  async function detectFaces(file) {
+    if (typeof tracking === 'undefined') {
+      console.warn('[SecurePrompt] tracking.js missing.');
+      return [];
+    }
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const tracker = new tracking.ObjectTracker('face');
+          tracker.setStepSize(1.7);
+          
+          tracking.track(img, tracker);
+          
+          tracker.on('track', function(event) {
+            resolve(event.data); // Array of {x, y, width, height}
+          });
+          
+          // Fallback if no events fire within 2.5s
+          setTimeout(() => resolve([]), 2500);
+        } catch (e) {
+          console.warn('[SecurePrompt] Face tracking error', e);
+          resolve([]);
+        }
+      };
+      img.onerror = () => resolve([]);
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   async function analyzeImage(file) {
     const findings = [];
     const warnings = [];
@@ -195,6 +236,25 @@ const FileScanner = (() => {
     // 2. Offscreen OCR Preprocessing
     console.log(`[SecurePrompt OCR] Analyzing ${file.name}...`);
     ocrData = await performOCR(file);
+
+    // 2b. Offline Face Detection
+    const faces = await detectFaces(file);
+    if (faces && faces.length > 0) {
+      warnings.push({
+        source: 'visual',
+        message: `${faces.length} face(s) detected. Tap "Redact & Send" to mask them over box boundaries.`,
+        findings: []
+      });
+      faces.forEach((f, i) => {
+        findings.push({
+          type: 'FACE',
+          label: 'Detected Face',
+          icon: '👤',
+          value: `[Face Detection ${i+1}]`,
+          bbox: f
+        });
+      });
+    }
 
     // 3. Multi-Layered Data Detection
     if (ocrData && ocrData.text) {
@@ -416,6 +476,17 @@ const FileScanner = (() => {
         
         // 4. Spatial Coordinate Intersection
         for (const finding of selectedFindings) {
+           if (finding.type === 'FACE' && finding.bbox) {
+             blocksToRedact.push({
+               x: finding.bbox.x - 5,
+               y: finding.bbox.y - 15, // slightly raise to cover forehead
+               w: finding.bbox.width + 10,
+               h: finding.bbox.height + 25 // extend to cover jaw
+             });
+             continue;
+           }
+
+           if (!finding.value) continue;
            const piiStr = finding.value.toLowerCase().replace(/[^a-z0-9]/g, '');
            if (!piiStr) continue;
            

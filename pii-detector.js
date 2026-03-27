@@ -161,6 +161,27 @@ const PIIDetector = (() => {
       icon: '🎟️',
       regex: /Bearer\s+[A-Za-z0-9_\-./+=]{20,}/g,
       validate: null
+    },
+    {
+      type: 'NAME',
+      label: 'Person Name',
+      icon: '👤',
+      regex: /(?:\b(?:Aarav|Aarti|Aditya|Ajay|Akash|Akhil|Amit|Anand|Anil|Anjali|Ankit|Anup|Arjun|Arvind|Asha|Ashish|Ashok|Avinash|Bharat|Bhavna|Chetan|Deepa|Deepali|Deepak|Dev|Dinesh|Divya|Ganesh|Gaurav|Gita|Gopal|Hari|Hemant|Isha|Jagdish|Jay|Jyoti|Kailash|Kamal|Kamesh|Karan|Kavita|Kavya|Kiran|Kishore|Krishna|Kulkarni|Kumar|Kunal|Lakshmi|Lalit|Lata|Madhu|Madhuri|Mahesh|Mamta|Manish|Manju|Manoj|Mayank|Meena|Megha|Mohan|Mohini|Mohit|Mukesh|Mukund|Namrata|Nandini|Naveen|Neelam|Neha|Nidhi|Nikhil|Nisha|Nishant|Nitin|Om|Omkar|Pallavi|Pankaj|Parth|Patel|Pavan|Pooja|Poonam|Pradeep|Prajakta|Prakash|Pramod|Pranab|Prasad|Prashant|Pratik|Praveen|Prem|Priya|Priyanka|Puneet|Radha|Raghu|Rahul|Raj|Rajan|Rajendra|Rajesh|Rajiv|Raju|Rakesh|Ram|Raman|Ramesh|Ravi|Reena|Rekha|Ritu|Rohan|Rohit|Roshan|Rupal|Rupesh|Sachin|Sameer|Sandhya|Sangeeta|Sanjay|Sanjeev|Santosh|Sarita|Satish|Saurabh|Savita|Seema|Shailendra|Shalini|Shankar|Sharad|Sharma|Shashank|Shikha|Shilpa|Shiv|Shruti|Shubham|Siddharth|Singh|Smriti|Sneha|Sonal|Subhash|Sudhir|Sujata|Sujit|Suman|Sumit|Sunil|Sunitha|Suraj|Suresh|Surya|Sushant|Sushma|Swara|Swati|Tarun|Tejas|Trisha|Uday|Umesh|Upendra|Usha|Vaibhav|Varun|Vasudev|Ved|Vidya|Vijay|Vikas|Vikram|Vimal|Vinay|Vinita|Vinod|Vipin|Vishal|Vishnu|Vivek|Yash|Yogesh)\s+[A-Z][a-z]+\b|\b[A-Z][a-z]+\s+(?:Agarwal|Ahuja|Bansal|Bhat|Bhatt|Bose|Chakraborty|Chatterjee|Chauhan|Chopra|Das|Desai|Deshmukh|Dixit|Dubey|Garg|Ghosh|Goyal|Gupta|Iyer|Jain|Jha|Joshi|Kapoor|Kaur|Khan|Khatri|Kulkarni|Kumar|Mehra|Mishra|Mukherjee|Nair|Pandey|Patel|Patil|Pillai|Prakash|Prasad|Rajput|Rao|Rathore|Reddy|Roy|Saini|Saxena|Sen|Seth|Shah|Sharma|Shetty|Shukla|Singh|Sinha|Soni|Srivastava|Srinivas|Thakur|Tiwari|Varma|Verma|Yadav)\b|(?:Mr\.|Mrs\.|Ms\.|Miss|Shri|Smt\.|Dr\.|Name:?)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b)/g,
+      validate: null
+    },
+    {
+      type: 'DATE_OF_BIRTH',
+      label: 'Date of Birth',
+      icon: '📅',
+      regex: /\b(?:(?:0?[1-9]|[12]\d|3[01])[-\/.\s](?:0?[1-9]|1[0-2]|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\/.\s](?:19|20)\d{2}|(?:19|20)\d{2}[-\/.\s](?:0?[1-9]|1[0-2]|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\/.\s](?:0?[1-9]|[12]\d|3[01]))\b/gi,
+      validate: (match) => {
+        const yearMatch = match.match(/(?:19|20)\d{2}/);
+        if (yearMatch) {
+          const year = parseInt(yearMatch[0], 10);
+          return year >= 1900 && year <= new Date().getFullYear() + 5;
+        }
+        return false;
+      }
     }
   ];
 
@@ -245,6 +266,10 @@ const PIIDetector = (() => {
           return value.slice(0, eqIdx + 1) + ' ••••••••';
         }
         return '••••••••';
+      case 'NAME':
+        return value.replace(/[a-z]/g, '•');
+      case 'DATE_OF_BIRTH':
+        return value.replace(/\d/g, 'x');
       default:
         if (value.length <= 8) return '•'.repeat(value.length);
         return value.slice(0, 4) + '•'.repeat(Math.min(value.length - 8, 20)) + value.slice(-4);
