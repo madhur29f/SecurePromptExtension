@@ -28,119 +28,136 @@ const PIIDetector = (() => {
     {
       type: 'CREDIT_CARD',
       label: 'Credit Card Number',
-      icon: '💳',
-      regex: /\b(?:4[0-9]{3}[-\s]?[0-9]{4}[-\s]?[0-9]{4}[-\s]?[0-9]{4}|5[1-5][0-9]{2}[-\s]?[0-9]{4}[-\s]?[0-9]{4}[-\s]?[0-9]{4}|3[47][0-9]{1,2}[-\s]?[0-9]{4,6}[-\s]?[0-9]{5}|6(?:011|5[0-9]{2})[-\s]?[0-9]{4}[-\s]?[0-9]{4}[-\s]?[0-9]{4})\b/g,
-      validate: (match) => luhnCheck(match)
+      icon: '💳', 
+      severity: 1.0,
+      regex: /\b(?:\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}|\d{4}[-\s]?\d{6}[-\s]?\d{5})\b/g,
+      validate: null
     },
     {
       type: 'SSN',
       label: 'Social Security Number',
-      icon: '🆔',
+      icon: '🆔', 
+      severity: 0.8,
       regex: /\b(?!000|666|9\d{2})\d{3}[-\s](?!00)\d{2}[-\s](?!0000)\d{4}\b/g,
       validate: null
     },
     {
       type: 'EMAIL',
       label: 'Email Address',
-      icon: '📧',
+      icon: '📧', 
+      severity: 0.3,
       regex: /\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b/g,
       validate: null
     },
     {
       type: 'PHONE',
       label: 'Phone Number',
-      icon: '📱',
+      icon: '📱', 
+      severity: 0.4,
       regex: /(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
       validate: (match) => match.replace(/\D/g, '').length >= 10
     },
     {
       type: 'PHONE_INTL',
       label: 'International Phone',
-      icon: '📱',
+      icon: '📱', 
+      severity: 0.4,
       regex: /\+(?:[1-9]\d{0,2})[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{2,4}[-.\s]?\d{0,4}\b/g,
       validate: (match) => match.replace(/\D/g, '').length >= 10
     },
     {
       type: 'AWS_KEY',
       label: 'AWS Access Key',
-      icon: '🔑',
+      icon: '🔑', 
+      severity: 1.0,
       regex: /\b(AKIA|ABIA|ACCA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}\b/g,
       validate: null
     },
     {
       type: 'AWS_SECRET',
       label: 'AWS Secret Key',
-      icon: '🔑',
+      icon: '🔑', 
+      severity: 1.0,
       regex: /(?:aws_secret_access_key|aws_secret|secret_key)\s*[=:]\s*[\"\']?[A-Za-z0-9/+=]{40}[\"\']?/gi,
       validate: null
     },
     {
       type: 'GITHUB_TOKEN',
       label: 'GitHub Token',
-      icon: '🔑',
+      icon: '🔑', 
+      severity: 1.0,
       regex: /\b(ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36,255}\b/g,
       validate: null
     },
     {
       type: 'GOOGLE_API_KEY',
       label: 'Google API Key',
-      icon: '🔑',
+      icon: '🔑', 
+      severity: 1.0,
       regex: /\bAIza[A-Za-z0-9_\-]{35}\b/g,
       validate: null
     },
     {
       type: 'STRIPE_KEY',
       label: 'Stripe API Key',
-      icon: '🔑',
+      icon: '🔑', 
+      severity: 1.0,
       regex: /\b[sr]k_(live|test)_[A-Za-z0-9]{20,}\b/g,
       validate: null
     },
     {
       type: 'GENERIC_API_KEY',
       label: 'API Key / Secret',
-      icon: '🔑',
+      icon: '🔑', 
+      severity: 1.0,
       regex: /(?:api[_-]?key|api[_-]?secret|access[_-]?token|auth[_-]?token|secret[_-]?key|private[_-]?key|client[_-]?secret)\s*[=:]\s*[\"\']?[A-Za-z0-9_\-./+=]{16,}[\"\']?/gi,
       validate: null
     },
     {
       type: 'PASSWORD',
       label: 'Password / Secret',
-      icon: '🔒',
+      icon: '🔒', 
+      severity: 1.0,
       regex: /(?:password|passwd|pwd|secret|token)\s*[=:]\s*[\"\']?[^\s\"\']{6,}[\"\']?/gi,
       validate: null
     },
     {
       type: 'PRIVATE_KEY',
       label: 'Private Key',
-      icon: '🔐',
+      icon: '🔐', 
+      severity: 1.0,
       regex: /-----BEGIN\s(?:RSA\s|EC\s|DSA\s|OPENSSH\s|PGP\s)?PRIVATE\sKEY(?:\sBLOCK)?-----[\s\S]*?-----END\s(?:RSA\s|EC\s|DSA\s|OPENSSH\s|PGP\s)?PRIVATE\sKEY(?:\sBLOCK)?-----/g,
       validate: null
     },
     {
       type: 'JWT',
       label: 'JWT Token',
-      icon: '🎟️',
+      icon: '🎟️', 
+      severity: 0.8,
       regex: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g,
       validate: null
     },
     {
       type: 'AADHAAR',
       label: 'Aadhaar Number',
-      icon: '🆔',
+      icon: '🆔', 
+      severity: 0.8,
       regex: /\b[2-9]\d{3}[-\s]?\d{4}[-\s]?\d{4}\b/g,
       validate: (match) => match.replace(/\D/g, '').length === 12
     },
     {
       type: 'PAN_CARD',
       label: 'PAN Card',
-      icon: '🆔',
+      icon: '🆔', 
+      severity: 0.8,
       regex: /\b[A-Z]{5}\d{4}[A-Z]\b/g,
       validate: null
     },
     {
       type: 'IPV4',
       label: 'IP Address',
-      icon: '🌐',
+      icon: '🌐', 
+      severity: 0.3,
       regex: /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\b/g,
       validate: (match) => {
         // Exclude common non-sensitive IPs
@@ -151,37 +168,42 @@ const PIIDetector = (() => {
     {
       type: 'CONNECTION_STRING',
       label: 'Database Connection String',
-      icon: '🗄️',
+      icon: '🗄️', 
+      severity: 1.0,
       regex: /(?:mongodb(?:\+srv)?|mysql|postgres(?:ql)?|redis|mssql):\/\/[^\s\"\']+/gi,
       validate: null
     },
     {
       type: 'BEARER_TOKEN',
       label: 'Bearer Token',
-      icon: '🎟️',
+      icon: '🎟️', 
+      severity: 1.0,
       regex: /Bearer\s+[A-Za-z0-9_\-./+=]{20,}/g,
       validate: null
     },
     {
       type: 'NAME',
       label: 'Person Name',
-      icon: '👤',
-      regex: /(?:\b(?:Aarav|Aarti|Aditya|Ajay|Akash|Akhil|Amit|Anand|Anil|Anjali|Ankit|Anup|Arjun|Arvind|Asha|Ashish|Ashok|Avinash|Bharat|Bhavna|Chetan|Deepa|Deepali|Deepak|Dev|Dinesh|Divya|Ganesh|Gaurav|Gita|Gopal|Hari|Hemant|Isha|Jagdish|Jay|Jyoti|Kailash|Kamal|Kamesh|Karan|Kavita|Kavya|Kiran|Kishore|Krishna|Kulkarni|Kumar|Kunal|Lakshmi|Lalit|Lata|Madhu|Madhuri|Mahesh|Mamta|Manish|Manju|Manoj|Mayank|Meena|Megha|Mohan|Mohini|Mohit|Mukesh|Mukund|Namrata|Nandini|Naveen|Neelam|Neha|Nidhi|Nikhil|Nisha|Nishant|Nitin|Om|Omkar|Pallavi|Pankaj|Parth|Patel|Pavan|Pooja|Poonam|Pradeep|Prajakta|Prakash|Pramod|Pranab|Prasad|Prashant|Pratik|Praveen|Prem|Priya|Priyanka|Puneet|Radha|Raghu|Rahul|Raj|Rajan|Rajendra|Rajesh|Rajiv|Raju|Rakesh|Ram|Raman|Ramesh|Ravi|Reena|Rekha|Ritu|Rohan|Rohit|Roshan|Rupal|Rupesh|Sachin|Sameer|Sandhya|Sangeeta|Sanjay|Sanjeev|Santosh|Sarita|Satish|Saurabh|Savita|Seema|Shailendra|Shalini|Shankar|Sharad|Sharma|Shashank|Shikha|Shilpa|Shiv|Shruti|Shubham|Siddharth|Singh|Smriti|Sneha|Sonal|Subhash|Sudhir|Sujata|Sujit|Suman|Sumit|Sunil|Sunitha|Suraj|Suresh|Surya|Sushant|Sushma|Swara|Swati|Tarun|Tejas|Trisha|Uday|Umesh|Upendra|Usha|Vaibhav|Varun|Vasudev|Ved|Vidya|Vijay|Vikas|Vikram|Vimal|Vinay|Vinita|Vinod|Vipin|Vishal|Vishnu|Vivek|Yash|Yogesh)\s+[A-Z][a-z]+\b|\b[A-Z][a-z]+\s+(?:Agarwal|Ahuja|Bansal|Bhat|Bhatt|Bose|Chakraborty|Chatterjee|Chauhan|Chopra|Das|Desai|Deshmukh|Dixit|Dubey|Garg|Ghosh|Goyal|Gupta|Iyer|Jain|Jha|Joshi|Kapoor|Kaur|Khan|Khatri|Kulkarni|Kumar|Mehra|Mishra|Mukherjee|Nair|Pandey|Patel|Patil|Pillai|Prakash|Prasad|Rajput|Rao|Rathore|Reddy|Roy|Saini|Saxena|Sen|Seth|Shah|Sharma|Shetty|Shukla|Singh|Sinha|Soni|Srivastava|Srinivas|Thakur|Tiwari|Varma|Verma|Yadav)\b|(?:Mr\.|Mrs\.|Ms\.|Miss|Shri|Smt\.|Dr\.|Name:?)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b)/g,
+      icon: '👤', 
+      severity: 0.3,
+      regex: /(?<=\b(?:[Mm]y name is|[Cc]all me|[Ii] am|[Ff]ather's [Nn]ame:|नाम \/ [Nn]ame:|(?:\b|[Nn])ame:\s*)\s+)(?!(?:and|but|with|my|is|the)\b)[A-Za-z]+(?:\s+[A-Za-z]+){0,2}\b|(?:\b(?:Aarav|Aarti|Aditya|Ajay|Akash|Akhil|Amit|Anand|Anil|Anjali|Ankit|Anup|Arjun|Arvind|Asha|Ashish|Ashok|Avinash|Bharat|Bhavna|Chetan|Deepa|Deepali|Deepak|Dev|Dinesh|Divya|Ganesh|Gaurav|Gita|Gopal|Hari|Hemant|Isha|Jagdish|Jay|Jyoti|Kailash|Kamal|Kamesh|Karan|Kavita|Kavya|Kiran|Kishore|Krishna|Kulkarni|Kumar|Kunal|Lakshmi|Lalit|Lata|Madhu|Madhuri|Mahesh|Mamta|Manish|Manju|Manoj|Mayank|Meena|Megha|Mohan|Mohini|Mohit|Mukesh|Mukund|Namrata|Nandini|Naveen|Neelam|Neha|Nidhi|Nikhil|Nisha|Nishant|Nitin|Om|Omkar|Pallavi|Pankaj|Parth|Patel|Pavan|Pooja|Poonam|Pradeep|Prajakta|Prakash|Pramod|Pranab|Prasad|Prashant|Pratik|Praveen|Prem|Priya|Priyanka|Puneet|Radha|Raghu|Rahul|Raj|Rajan|Rajendra|Rajesh|Rajiv|Raju|Rakesh|Ram|Raman|Ramesh|Ravi|Reena|Rekha|Ritu|Rohan|Rohit|Roshan|Rupal|Rupesh|Sachin|Sameer|Sandhya|Sangeeta|Sanjay|Sanjeev|Santosh|Sarita|Satish|Saurabh|Savita|Seema|Shailendra|Shalini|Shankar|Sharad|Sharma|Shashank|Shikha|Shilpa|Shiv|Shruti|Shubham|Siddharth|Singh|Smriti|Sneha|Sonal|Subhash|Sudhir|Sujata|Sujit|Suman|Sumit|Sunil|Sunitha|Suraj|Suresh|Surya|Sushant|Sushma|Swara|Swati|Tarun|Tejas|Trisha|Uday|Umesh|Upendra|Usha|Vaibhav|Varun|Vasudev|Ved|Vidya|Vijay|Vikas|Vikram|Vimal|Vinay|Vinita|Vinod|Vipin|Vishal|Vishnu|Vivek|Yash|Yogesh)\s+[A-Z][a-z]+\b|\b[A-Z][a-z]+\s+(?:Agarwal|Ahuja|Bansal|Bhat|Bhatt|Bose|Chakraborty|Chatterjee|Chauhan|Chopra|Das|Desai|Deshmukh|Dixit|Dubey|Garg|Ghosh|Goyal|Gupta|Iyer|Jain|Jha|Joshi|Kapoor|Kaur|Khan|Khatri|Kulkarni|Kumar|Mehra|Mishra|Mukherjee|Nair|Pandey|Patel|Patil|Pillai|Prakash|Prasad|Rajput|Rao|Rathore|Reddy|Roy|Saini|Saxena|Sen|Seth|Shah|Sharma|Shetty|Shukla|Singh|Sinha|Soni|Srivastava|Srinivas|Thakur|Tiwari|Varma|Verma|Yadav)\b|(?:Mr\.|Mrs\.|Ms\.|Miss|Shri|Smt\.|Dr\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b)/g,
       validate: null
     },
     {
       type: 'DATE_OF_BIRTH',
       label: 'Date of Birth',
-      icon: '📅',
-      regex: /\b(?:(?:0?[1-9]|[12]\d|3[01])[-\/.\s](?:0?[1-9]|1[0-2]|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\/.\s](?:19|20)\d{2}|(?:19|20)\d{2}[-\/.\s](?:0?[1-9]|1[0-2]|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-\/.\s](?:0?[1-9]|[12]\d|3[01]))\b/gi,
-      validate: (match) => {
-        const yearMatch = match.match(/(?:19|20)\d{2}/);
-        if (yearMatch) {
-          const year = parseInt(yearMatch[0], 10);
-          return year >= 1900 && year <= new Date().getFullYear() + 5;
-        }
-        return false;
-      }
+      icon: '📅', 
+      severity: 0.5,
+      regex: /\b(?:(?:0[1-9]|[12][0-9]|3[01])[-/](?:0[1-9]|1[0-2])[-/](?:19|20)\d{2}|(?:0[1-9]|1[0-2])[-/](?:0[1-9]|[12][0-9]|3[01])[-/](?:19|20)\d{2})\b/g,
+      validate: null
+    },
+    {
+      type: 'ADDRESS',
+      label: 'Physical Address',
+      icon: '📍', 
+      severity: 0.5,
+      regex: /\b\d{1,5}[A-Za-z]?\s+(?:[A-Za-z0-9#.-]+\s+){0,4}(?:Street|St|Avenue|Ave|Boulevard|Blvd|Road|Rd|Drive|Dr|Lane|Ln|Court|Ct|Flat|Plot|Building|Bldg|Apartment|Apt)(?:\s*[,]*\s*[a-zA-Z0-9#.\-,]+){0,6}\b|(?<=\b(?:ship to|living at|send to|address is|residing at)\s+)[a-zA-Z0-9#.,\- \n]{10,120}/gi,
+      validate: null
     }
   ];
 
@@ -224,6 +246,7 @@ const PIIDetector = (() => {
           type: pattern.type,
           label: pattern.label,
           icon: pattern.icon,
+          severity: pattern.severity,
           value: value,
           start: start,
           end: end,
@@ -270,6 +293,8 @@ const PIIDetector = (() => {
         return value.replace(/[a-z]/g, '•');
       case 'DATE_OF_BIRTH':
         return value.replace(/\d/g, 'x');
+      case 'ADDRESS':
+        return value.replace(/[a-zA-Z0-9]/g, '•');
       default:
         if (value.length <= 8) return '•'.repeat(value.length);
         return value.slice(0, 4) + '•'.repeat(Math.min(value.length - 8, 20)) + value.slice(-4);
@@ -311,10 +336,27 @@ const PIIDetector = (() => {
     }));
   }
 
-  return { scan, redact, getTypes, maskValue };
+  
+  function calculateRiskScore(findings) {
+    if (!findings || findings.length === 0) return 0;
+    let maxSeverity = 0;
+    findings.forEach(f => {
+      const sev = f.severity !== undefined ? f.severity : (patterns.find(p => p.type === f.type)?.severity || 0.5);
+      if (sev > maxSeverity) maxSeverity = sev;
+    });
+    let score = maxSeverity * 100;
+    if (findings.length > 1) {
+      const bonus = Math.min(10, (findings.length - 1) * 2);
+      score = Math.min(100, score + bonus);
+    }
+    return Math.round(score);
+  }
+
+  return { scan, redact, getTypes, maskValue, calculateRiskScore };
 })();
 
 // Make available globally for content scripts
 if (typeof window !== 'undefined') {
   window.PIIDetector = PIIDetector;
+  globalThis.PIIDetector = PIIDetector;
 }

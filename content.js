@@ -499,5 +499,97 @@
     });
   }, true);
 
+  // ──────────────────────────────────────────────────────────
+  //  LIVE SPEEDOMETER RISK GAUGE
+  // ──────────────────────────────────────────────────────────
+  let riskGaugeEl = null;
+  let riskRingFill = null;
+  let riskText = null;
+
+  function initRiskGauge() {
+    if (riskGaugeEl && document.body.contains(riskGaugeEl)) return;
+    const input = findTextInput();
+    if (!input || !input.parentElement) return;
+
+    riskGaugeEl = document.createElement('div');
+    riskGaugeEl.className = 'secureprompt-risk-gauge';
+    riskGaugeEl.innerHTML = `
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <circle class="secureprompt-risk-ring-bg" cx="16" cy="16" r="13"></circle>
+        <circle class="secureprompt-risk-ring-fill" cx="16" cy="16" r="13"></circle>
+        <text class="secureprompt-risk-text" x="16" y="17">0</text>
+      </svg>
+    `;
+    const parent = input.parentElement;
+    if (window.getComputedStyle(parent).position === 'static') {
+      parent.style.position = 'relative';
+    }
+    parent.appendChild(riskGaugeEl);
+    riskRingFill = riskGaugeEl.querySelector('.secureprompt-risk-ring-fill');
+    riskText = riskGaugeEl.querySelector('.secureprompt-risk-text');
+  }
+
+  function updateRiskGauge(score) {
+    initRiskGauge();
+    if (!riskGaugeEl) return;
+
+    if (score > 0) {
+      riskGaugeEl.classList.add('sp-visible');
+    }
+
+
+    const circumference = 81.68;
+    const offset = Math.max(0, circumference - (score / 100) * circumference);
+    riskRingFill.style.strokeDasharray = circumference;
+    riskRingFill.style.strokeDashoffset = offset;
+    riskText.textContent = score;
+
+    let color = '#00ff41'; // Green
+    if (score >= 90) color = '#ff3131'; // Red
+    else if (score >= 40) color = '#ffd700'; // Yellow
+
+    riskGaugeEl.style.setProperty('--risk-color', color);
+
+    if (score >= 90) {
+      riskGaugeEl.classList.add('secureprompt-critical');
+    } else {
+      riskGaugeEl.classList.remove('secureprompt-critical');
+    }
+  }
+
+  let inputDebounceTimer = null;
+  function handleLiveInput() {
+    clearTimeout(inputDebounceTimer);
+    inputDebounceTimer = setTimeout(() => {
+      if (!settings.enabled) {
+        updateRiskGauge(0);
+        return;
+      }
+      const input = findTextInput();
+      if (!input) return;
+      const text = getInputText(input);
+      if (!text || text.trim() === '') {
+        updateRiskGauge(0);
+        return;
+      }
+      if (typeof window.PIIDetector !== 'undefined') {
+        const findings = window.PIIDetector.scan(text, settings.enabledTypes);
+        const score = window.PIIDetector.calculateRiskScore(findings);
+        updateRiskGauge(score);
+      }
+    }, 200);
+  }
+
+  document.addEventListener('input', (e) => {
+    const input = findTextInput();
+    if (input && input.contains(e.target)) {
+      handleLiveInput();
+    }
+  }, true);
+
+  setInterval(() => {
+    if (settings.enabled) initRiskGauge();
+  }, 2000);
+
   console.log('[SecurePrompt] Content script initialized ✓');
 })();

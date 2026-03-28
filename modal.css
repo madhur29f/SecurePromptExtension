@@ -402,3 +402,60 @@
     transform: translateY(0) scale(1);
   }
 }
+
+/* ── Live Speedometer Risk Gauge ── */
+.secureprompt-risk-gauge {
+  position: absolute;
+  top: 10px;
+  right: 50px;
+  width: 32px;
+  height: 32px;
+  z-index: 2147483647;
+  pointer-events: none;
+  background: rgba(15, 18, 25, 0.85);
+  border-radius: 50%;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.secureprompt-risk-ring-bg {
+  fill: none;
+  stroke: rgba(255,255,255,0.1);
+  stroke-width: 3;
+}
+
+.secureprompt-risk-ring-fill {
+  fill: none;
+  stroke: var(--risk-color, #00ff41);
+  stroke-width: 3;
+  stroke-dasharray: 81.68;
+  stroke-dashoffset: 81.68;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease;
+  filter: drop-shadow(0 0 4px var(--risk-color)) !important;
+}
+
+.secureprompt-risk-text {
+  fill: var(--risk-color, #00ff41);
+  font-size: 11px;
+  font-weight: 800;
+  font-family: inherit;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+@keyframes securepromptCriticalPulse {
+  0% { filter: drop-shadow(0 0 4px #ff3131); transform: rotate(-90deg) scale(1); }
+  50% { filter: drop-shadow(0 0 12px #ff3131); transform: rotate(-90deg) scale(1.05); }
+  100% { filter: drop-shadow(0 0 4px #ff3131); transform: rotate(-90deg) scale(1); }
+}
+
+.secureprompt-critical .secureprompt-risk-ring-fill {
+  animation: securepromptCriticalPulse 1.5s infinite;
+}
