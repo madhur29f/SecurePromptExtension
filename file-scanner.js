@@ -107,6 +107,127 @@ const FileScanner = (() => {
   }
 
   /**
+   * Extract and analyze PDF metadata for sensitive corporate information.
+   * Detects: Author, Company, Classification tags (Confidential, Private, etc.)
+   */
+  async function extractPDFMetadata(file) {
+    const metadataFindings = [];
+    const metadataFields = {};
+
+    try {
+      // Use pdf-lib to read metadata (it can parse existing PDFs)
+      if (!window.PDFLib) {
+        return { findings: [], fields: {}, error: 'pdf-lib not available' };
+      }
+
+      const arrayBuffer = await readAsArrayBuffer(file);
+      const pdfDoc = await window.PDFLib.PDFDocument.load(arrayBuffer, {
+        updateMetadata: false
+      });
+
+      // Read standard metadata fields
+      metadataFields.title = pdfDoc.getTitle() || '';
+      metadataFields.author = pdfDoc.getAuthor() || '';
+      metadataFields.subject = pdfDoc.getSubject() || '';
+      metadataFields.keywords = (pdfDoc.getKeywords() || '');
+      metadataFields.creator = pdfDoc.getCreator() || '';
+      metadataFields.producer = pdfDoc.getProducer() || '';
+
+      // Corporate classification keywords to detect
+      const classificationKeywords = [
+        'confidential', 'private', 'internal', 'restricted', 'secret',
+        'top secret', 'classified', 'sensitive', 'proprietary',
+        'not for distribution', 'do not share', 'internal only',
+        'company confidential', 'trade secret', 'privileged',
+        'under nda', 'nda', 'for internal use only', 'draft',
+        'strictly confidential', 'protected', 'controlled'
+      ];
+
+      // Check each metadata field
+      const fieldsToCheck = [
+        { key: 'title', label: 'Document Title', value: metadataFields.title },
+        { key: 'author', label: 'Author Name', value: metadataFields.author },
+        { key: 'subject', label: 'Subject', value: metadataFields.subject },
+        { key: 'keywords', label: 'Keywords', value: metadataFields.keywords },
+        { key: 'creator', label: 'Creator Software', value: metadataFields.creator },
+        { key: 'producer', label: 'Producer', value: metadataFields.producer }
+      ];
+
+      for (const field of fieldsToCheck) {
+        if (!field.value || field.value.trim() === '') continue;
+
+        const lowerVal = field.value.toLowerCase();
+
+        // Check for classification keywords
+        for (const keyword of classificationKeywords) {
+          if (lowerVal.includes(keyword)) {
+            metadataFindings.push({
+              type: 'PDF_CLASSIFICATION',
+              label: `Corporate Classification (${field.label})`,
+              icon: '🏢',
+              severity: 1.0,
+              value: `${field.label}: "${field.value}" [contains: ${keyword.toUpperCase()}]`,
+              masked: `${field.label}: ●●●●● [${keyword.toUpperCase()}]`,
+              metaKey: field.key
+            });
+            break; // One finding per field is enough
+          }
+        }
+
+        // Flag non-empty Author/Title/Subject as identity-leaking metadata
+        if (['author', 'title', 'subject'].includes(field.key)) {
+          // Skip if already flagged as classification
+          const alreadyFlagged = metadataFindings.some(f => f.metaKey === field.key);
+          if (!alreadyFlagged && field.value.trim().length > 0) {
+            metadataFindings.push({
+              type: 'PDF_METADATA',
+              label: `PDF Metadata (${field.label})`,
+              icon: '📋',
+              severity: 0.4,
+              value: `${field.label}: "${field.value}"`,
+              masked: `${field.label}: ●●●●●●●●`,
+              metaKey: field.key
+            });
+          }
+        }
+
+        // Also scan metadata values for PII (email in author, etc.)
+        if (window.PIIDetector) {
+          const piiInMeta = window.PIIDetector.scan(field.value);
+          for (const pii of piiInMeta) {
+            metadataFindings.push({
+              ...pii,
+              label: `${pii.label} (in ${field.label})`,
+              metaKey: field.key
+            });
+          }
+        }
+      }
+
+      return { findings: metadataFindings, fields: metadataFields, error: null };
+    } catch (e) {
+      console.warn('[SecurePrompt] PDF metadata extraction failed:', e);
+      return { findings: [], fields: metadataFields, error: e.message };
+    }
+  }
+
+  /**
+   * Strip all metadata from a PDF using pdf-lib.
+   */
+  async function stripPDFMetadata(pdfDoc) {
+    try {
+      pdfDoc.setTitle('');
+      pdfDoc.setAuthor('');
+      pdfDoc.setSubject('');
+      pdfDoc.setKeywords([]);
+      pdfDoc.setCreator('SecurePrompt');
+      pdfDoc.setProducer('SecurePrompt — Metadata Stripped');
+    } catch (e) {
+      console.warn('[SecurePrompt] Metadata stripping partial failure:', e);
+    }
+  }
+
+  /**
    * Extract text from a DOCX file.
    */
   async function extractDOCXText(file) {
@@ -393,6 +514,35 @@ const FileScanner = (() => {
             findings: []
           });
         }
+
+        // ── Metadata Scan ──
+        const metaResult = await extractPDFMetadata(file);
+        if (metaResult.findings.length > 0) {
+          result.findings.push(...metaResult.findings);
+
+          // Check for corporate classification tags specifically
+          const classificationFindings = metaResult.findings.filter(f => f.type === 'PDF_CLASSIFICATION');
+          if (classificationFindings.length > 0) {
+            const tags = classificationFindings.map(f => f.value).join(', ');
+            result.warnings.push({
+              source: 'metadata',
+              message: `⚠️ CORPORATE CLASSIFIED DOCUMENT — This PDF contains classification tags in its metadata: ${tags}. Uploading this to an AI chatbot may violate your organization's data policy.`,
+              findings: classificationFindings
+            });
+          }
+
+          // General metadata warning
+          const metaFields = metaResult.findings.filter(f => f.type === 'PDF_METADATA');
+          if (metaFields.length > 0) {
+            result.warnings.push({
+              source: 'metadata',
+              message: `PDF contains hidden metadata (Author, Title, Subject) that may reveal your identity or organization. Tap "Redact & Send" to strip it.`,
+              findings: []
+            });
+          }
+        }
+        // Store metadata fields for use during redaction
+        result._pdfMetaFields = metaResult.fields;
       }
       // ── DOCX ──
       else if (ext === 'docx' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
@@ -510,11 +660,17 @@ const FileScanner = (() => {
       if (ext === 'pdf' || mimeType === 'application/pdf') {
         const extracted = await extractPDFText(file);
         if (!extracted.text) return file;
-        const redactedText = window.PIIDetector.redact(extracted.text, result.findings, selectedIndices);
+
+        // Filter out metadata-only findings for text redaction
+        const textFindings = result.findings.filter(f => f.type !== 'PDF_METADATA' && f.type !== 'PDF_CLASSIFICATION');
+        const redactedText = window.PIIDetector.redact(extracted.text, textFindings, selectedIndices);
 
         if (window.PDFLib) {
           const pdfDoc = await window.PDFLib.PDFDocument.create();
           const font = await pdfDoc.embedFont(window.PDFLib.StandardFonts.Helvetica);
+
+          // ── STRIP ALL METADATA ──
+          await stripPDFMetadata(pdfDoc);
 
           // Basic pagination to prevent overflowing the page bottom
           const lines = redactedText.split('\n');
@@ -522,7 +678,7 @@ const FileScanner = (() => {
           let { width, height } = page.getSize();
           let y = height - 50;
 
-          page.drawText('--- REDACTED SECURE COPY ---', { x: 50, y, size: 14, font });
+          page.drawText('--- REDACTED SECURE COPY (Metadata Stripped) ---', { x: 50, y, size: 14, font });
           y -= 30;
 
           for (const line of lines) {
