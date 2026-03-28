@@ -159,6 +159,82 @@ const FileScanner = (() => {
     }
   }
 
+  /**
+   * Extract text from an Excel (.xlsx) file.
+   */
+  async function extractXLSXText(file) {
+    const JSZipLib = await loadJSZip();
+    if (!JSZipLib) {
+      return { text: '', error: 'JSZip library not available for Excel parsing', partial: true };
+    }
+
+    try {
+      const arrayBuffer = await readAsArrayBuffer(file);
+      const zip = await JSZipLib.loadAsync(arrayBuffer);
+      const texts = [];
+
+      // 1. Extract shared strings (most cell values live here)
+      const sharedStringsXml = await zip.file('xl/sharedStrings.xml')?.async('text');
+      const sharedStrings = [];
+      if (sharedStringsXml) {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(sharedStringsXml, 'application/xml');
+        const siNodes = xmlDoc.getElementsByTagName('si');
+        for (const si of siNodes) {
+          const tNodes = si.getElementsByTagName('t');
+          let cellText = '';
+          for (const t of tNodes) {
+            cellText += t.textContent;
+          }
+          sharedStrings.push(cellText);
+          if (cellText.trim()) texts.push(cellText);
+        }
+      }
+
+      // 2. Parse each worksheet for inline strings and numeric values
+      const sheetFiles = Object.keys(zip.files).filter(f =>
+        f.match(/^xl\/worksheets\/sheet\d+\.xml$/)
+      );
+
+      for (const sheetPath of sheetFiles) {
+        const sheetXml = await zip.file(sheetPath)?.async('text');
+        if (!sheetXml) continue;
+
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(sheetXml, 'application/xml');
+        const rows = xmlDoc.getElementsByTagName('row');
+
+        for (const row of rows) {
+          const cells = row.getElementsByTagName('c');
+          const rowTexts = [];
+          for (const cell of cells) {
+            const type = cell.getAttribute('t');
+            const vNode = cell.getElementsByTagName('v')[0];
+            if (!vNode) continue;
+
+            if (type === 's') {
+              // Shared string reference — already captured above
+              const idx = parseInt(vNode.textContent, 10);
+              if (sharedStrings[idx]) rowTexts.push(sharedStrings[idx]);
+            } else if (type === 'inlineStr') {
+              // Inline string
+              const tNode = cell.getElementsByTagName('t')[0];
+              if (tNode) rowTexts.push(tNode.textContent);
+            } else {
+              // Number or other — include as-is (could be phone, Aadhaar digits)
+              rowTexts.push(vNode.textContent);
+            }
+          }
+          if (rowTexts.length > 0) texts.push(rowTexts.join(' | '));
+        }
+      }
+
+      return { text: texts.join('\n'), error: null, partial: false };
+    } catch (e) {
+      return { text: '', error: `Excel extraction failed: ${e.message}`, partial: true };
+    }
+  }
+
   async function performOCR(file) {
     try {
       const dataUrl = await new Promise((resolve, reject) => {
@@ -172,7 +248,7 @@ const FileScanner = (() => {
         type: 'OCR_IMAGE',
         dataUrl
       });
-      
+
       if (response && response.error) {
         console.warn('[SecurePrompt] Offscreen OCR failed:', response.error);
         return null;
@@ -198,13 +274,13 @@ const FileScanner = (() => {
         try {
           const tracker = new tracking.ObjectTracker('face');
           tracker.setStepSize(1.7);
-          
+
           tracking.track(img, tracker);
-          
-          tracker.on('track', function(event) {
+
+          tracker.on('track', function (event) {
             resolve(event.data); // Array of {x, y, width, height}
           });
-          
+
           // Fallback if no events fire within 2.5s
           setTimeout(() => resolve([]), 2500);
         } catch (e) {
@@ -250,7 +326,7 @@ const FileScanner = (() => {
           type: 'FACE',
           label: 'Detected Face',
           icon: '👤',
-          value: `[Face Detection ${i+1}]`,
+          value: `[Face Detection ${i + 1}]`,
           bbox: f
         });
       });
@@ -261,7 +337,7 @@ const FileScanner = (() => {
       extractedText = ocrData.text;
       const textFindings = window.PIIDetector ? window.PIIDetector.scan(extractedText) : [];
       if (textFindings.length > 0) {
-         findings.push(...textFindings);
+        findings.push(...textFindings);
       }
     } else {
       warnings.push({
@@ -328,12 +404,29 @@ const FileScanner = (() => {
           result.findings = window.PIIDetector ? window.PIIDetector.scan(extracted.text) : [];
         }
       }
-      
+      // ── Excel (.xlsx) ──
+      else if (ext === 'xlsx' || mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+        const extracted = await extractXLSXText(file);
+        if (extracted.error) {
+          result.warnings.push({ source: 'extraction', message: extracted.error, findings: [] });
+        }
+        if (extracted.text) {
+          result.findings = window.PIIDetector ? window.PIIDetector.scan(extracted.text) : [];
+        }
+        if (extracted.partial) {
+          result.warnings.push({
+            source: 'partial',
+            message: 'Excel text extraction may be incomplete. Review the spreadsheet for additional sensitive content.',
+            findings: []
+          });
+        }
+      }
+
       // ── Images ──
       else if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
         const imageResult = await analyzeImage(file);
         result.warnings = imageResult.warnings;
-        
+
         // Merge image findings
         if (imageResult.findings && imageResult.findings.length > 0) {
           result.findings.push(...imageResult.findings);
@@ -341,10 +434,10 @@ const FileScanner = (() => {
         for (const w of imageResult.warnings) {
           if (w.findings && w.findings.length > 0) result.findings.push(...w.findings);
         }
-        
+
         if (imageResult.ocrWords) result.ocrWords = imageResult.ocrWords;
       }
-      
+
       // ── Text-based files ──
       else if (
         mimeType.startsWith('text/') ||
@@ -418,17 +511,17 @@ const FileScanner = (() => {
         const extracted = await extractPDFText(file);
         if (!extracted.text) return file;
         const redactedText = window.PIIDetector.redact(extracted.text, result.findings, selectedIndices);
-        
+
         if (window.PDFLib) {
           const pdfDoc = await window.PDFLib.PDFDocument.create();
           const font = await pdfDoc.embedFont(window.PDFLib.StandardFonts.Helvetica);
-          
+
           // Basic pagination to prevent overflowing the page bottom
           const lines = redactedText.split('\n');
           let page = pdfDoc.addPage();
           let { width, height } = page.getSize();
           let y = height - 50;
-          
+
           page.drawText('--- REDACTED SECURE COPY ---', { x: 50, y, size: 14, font });
           y -= 30;
 
@@ -444,7 +537,7 @@ const FileScanner = (() => {
               y -= 14;
             }
           }
-          
+
           const pdfBytes = await pdfDoc.save();
           const newName = file.name.replace(/\.[^/.]+$/, "") + "_redacted.pdf";
           return new File([pdfBytes], newName, { type: 'application/pdf' });
@@ -454,88 +547,98 @@ const FileScanner = (() => {
           return new File([redactedText], newName, { type: 'text/plain' });
         }
       }
-      
+
       // ── DOCX ──
       else if (ext === 'docx' || mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
         const extracted = await extractDOCXText(file);
         if (!extracted.text) return file;
         const redactedText = window.PIIDetector.redact(extracted.text, result.findings, selectedIndices);
-        
+
         // Outputting a clean .txt file instead of trying to rebuild a fragile .docx archive
         // Since we hijack the upload at the DOM Event level, React gracefully accepts the .txt
         const newName = file.name.replace(/\.[^/.]+$/, "") + "_redacted.txt";
         return new File([redactedText], newName, { type: 'text/plain' });
       }
-      
+
+      // ── Excel (.xlsx) ──
+      else if (ext === 'xlsx' || mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+        const extracted = await extractXLSXText(file);
+        if (!extracted.text) return file;
+        const redactedText = window.PIIDetector.redact(extracted.text, result.findings, selectedIndices);
+
+        const newName = file.name.replace(/\.[^/.]+$/, "") + "_redacted.txt";
+        return new File([redactedText], newName, { type: 'text/plain' });
+      }
+
       // ── Images (Canvas Reconstruction & Pixel Destruction) ──
       else if (mimeType.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
         if (!result.ocrWords || result.findings.length === 0) return file;
-        
+
         const selectedFindings = result.findings.filter((_, i) => selectedIndices.has(i));
         const blocksToRedact = [];
-        
+
         // 4. Spatial Coordinate Intersection
         for (const finding of selectedFindings) {
-           if (finding.type === 'FACE' && finding.bbox) {
-             blocksToRedact.push({
-               x: finding.bbox.x - 5,
-               y: finding.bbox.y - 15, // slightly raise to cover forehead
-               w: finding.bbox.width + 10,
-               h: finding.bbox.height + 25 // extend to cover jaw
-             });
-             continue;
-           }
+          if (finding.type === 'FACE' && finding.bbox) {
+            blocksToRedact.push({
+              x: finding.bbox.x - 5,
+              y: finding.bbox.y - 15, // slightly raise to cover forehead
+              w: finding.bbox.width + 10,
+              h: finding.bbox.height + 25 // extend to cover jaw
+            });
+            continue;
+          }
 
-           if (!finding.value) continue;
-           const piiStr = finding.value.toLowerCase().replace(/[^a-z0-9]/g, '');
-           if (!piiStr) continue;
-           
-           for (const word of result.ocrWords) {
-             const wordStr = word.text.toLowerCase().replace(/[^a-z0-9]/g, '');
-             if (!wordStr) continue;
-             if (piiStr === wordStr || (wordStr.length > 2 && (piiStr.includes(wordStr) || wordStr.includes(piiStr)))) {
-               // Pad the bounding box slightly to ensure full coverage
-               blocksToRedact.push({
-                 x: word.bbox.x0 - 2,
-                 y: word.bbox.y0 - 2,
-                 w: word.bbox.width + 4,
-                 h: word.bbox.height + 4
-               });
-             }
-           }
+          if (!finding.value) continue;
+          const piiStr = finding.value.toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (!piiStr) continue;
+
+          for (const word of result.ocrWords) {
+            const wordStr = word.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (!wordStr) continue;
+            if (piiStr === wordStr || (wordStr.length > 2 && (piiStr.includes(wordStr) || wordStr.includes(piiStr)))) {
+              // Pad the bounding box slightly to ensure full coverage
+              blocksToRedact.push({
+                x: word.bbox.x0 - 2,
+                y: word.bbox.y0 - 2,
+                w: word.bbox.width + 4,
+                h: word.bbox.height + 4
+              });
+            }
+          }
         }
-        
+
         if (blocksToRedact.length === 0) return file;
-        
+
         // 5. Canvas Reconstruction & 6. Reserialization
         return new Promise((resolve) => {
           const img = new Image();
           img.onload = () => {
-             const canvas = document.createElement('canvas');
-             canvas.width = img.width;
-             canvas.height = img.height;
-             const ctx = canvas.getContext('2d');
-             
-             // Paint original image
-             ctx.drawImage(img, 0, 0);
-             
-             // Pixel Destruction
-             ctx.fillStyle = '#1e1e1e'; // Dark gray as requested
-             for (const block of blocksToRedact) {
-               ctx.fillRect(block.x, block.y, block.w, block.h);
-             }
-             
-             canvas.toBlob((blob) => {
-               const newName = file.name.replace(/\.[^/.]+$/, "") + "_redacted.png";
-               resolve(new File([blob], newName, { type: 'image/png' }));
-             }, 'image/png');
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            // Paint original image
+            ctx.drawImage(img, 0, 0);
+
+            // Pixel Destruction
+            ctx.fillStyle = '#1e1e1e'; // Dark gray as requested
+            for (const block of blocksToRedact) {
+              ctx.fillRect(block.x, block.y, block.w, block.h);
+            }
+
+            canvas.toBlob((blob) => {
+              const newName = file.name.replace(/\.[^/.]+$/, "") + "_redacted.png";
+              resolve(new File([blob], newName, { type: 'image/png' }));
+            }, 'image/png');
           };
           img.onerror = () => resolve(file);
           img.src = URL.createObjectURL(file);
         });
       }
-      
-      
+
+
       // ── Text-based files ──
       else {
         try {
